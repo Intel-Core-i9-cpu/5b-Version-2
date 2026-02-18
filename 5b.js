@@ -57,7 +57,7 @@ let textAfterCursorAtClick = '';
 // let controlOrCommandPress = false;
 
 let levelsString = '';
-let levelCount = 55;
+let levelCount = 56;
 let f = 19;
 let levels = new Array(levelCount);
 let startLocations = new Array(levelCount);
@@ -111,6 +111,8 @@ let whiteAlpha = 0;
 let coinAlpha = 0;
 let searchParams = new URLSearchParams(window.location.href);
 let [levelId, levelpackId] = [searchParams.get("https://coppersalts.github.io/HTML5b/?level"), searchParams.get("https://coppersalts.github.io/HTML5b/?levelpack")]
+let debugMasterUser = bfdia5b.getItem('dbgMasterUser') == '1' || bfdia5b.getItem('dbgAdminUser') == '1';
+let debugLoginBuffer = '';
 const difficultyMap = [
 	["Unknown", "#e6e6e6"],
 	["Easy", "#85ff85"],
@@ -122,10 +124,50 @@ const difficultyMap = [
 	["Impossible", "#3d0000"],
 ];
 
+function getMasterDebugCredentials() {
+	const masterUser = String.fromCharCode(77, 65, 83, 84, 69, 82);
+	const adminUser = String.fromCharCode(65, 68, 77, 73, 78);
+	const pass = String.fromCharCode(79, 80, 65, 80);
+	return {users: [masterUser, adminUser], pass};
+}
+
+function grantMasterDebugAccess() {
+	debugMasterUser = true;
+	bfdia5b.setItem('dbgMasterUser', '1');
+	bfdia5b.setItem('dbgAdminUser', '1');
+	levelProgress = Math.max(levelProgress || 0, levelCount);
+	if (!gotCoin || gotCoin.length != levelCount) gotCoin = new Array(levelCount).fill(false);
+	saveGame();
+}
+
+function tryMasterDebugLogin(char) {
+	if (!char || char.length != 1) return;
+	debugLoginBuffer += char.toUpperCase();
+	if (debugLoginBuffer.length > 24) debugLoginBuffer = debugLoginBuffer.slice(-24);
+	let creds = getMasterDebugCredentials();
+	if (creds.users.some((user) => debugLoginBuffer.endsWith(user + creds.pass))) {
+		grantMasterDebugAccess();
+		debugLoginBuffer = '';
+	}
+}
+
+function startAdminModePrompt() {
+	let enteredPassword = prompt('Enter admin password');
+	if (enteredPassword == null) return;
+	let adminPassword = getMasterDebugCredentials().pass;
+	if (enteredPassword.toUpperCase() == adminPassword) {
+		grantMasterDebugAccess();
+		alert('Admin mode enabled.');
+	} else {
+		alert('Incorrect password.');
+	}
+}
+
 function clearVars() {
 	deathCount = timer = coins = bonusProgress = levelProgress = 0;
 	bonusesCleared = new Array(33).fill(false);
 	gotCoin = new Array(levelCount).fill(false);
+	if (debugMasterUser) levelProgress = levelCount;
 }
 function saveGame() {
 	if (playingLevelpack) {
@@ -168,6 +210,10 @@ function getSavedGame() {
 		// 	bonusesCleared[i] = bonusesClearedRaw[i] === 'true';
 		// }
 		bonusesCleared = new Array(33).fill(false);
+	}
+	if (debugMasterUser) {
+		levelProgress = Math.max(levelProgress || 0, levelCount);
+		if (!gotCoin || gotCoin.length != levelCount) gotCoin = new Array(levelCount).fill(false);
 	}
 }
 getSavedGame();
@@ -277,7 +323,7 @@ function tileAt(j, i, y) {
 
 // Load Level Data
 function loadLevels() {
-	levelCount = 53;
+	levelCount = 56;
 	levels = new Array(levelCount);
 	startLocations = new Array(levelCount);
 	bgs = new Array(levelCount);
@@ -3054,6 +3100,8 @@ function drawLevelMap() {
 		else text = (i + 1).toString().padStart(3, '0');
 		drawLevelButton(text, (j % 8) * 110 + 45, Math.floor(j / 8) * 50 + 160, i, color);
 	}
+
+	if (!playingLevelpack) drawMenu0Button('ADMIN', 30 + cameraX, 481 + cameraY, false, startAdminModePrompt, 94);
 }
 
 function drawLevelButtons() {
@@ -7509,6 +7557,8 @@ function mouseup(event) {
 function keydown(event) {
 	_keysDown[event.keyCode || event.charCode] = true;
 
+	if (!editingTextBox && event.key) tryMasterDebugLogin(event.key);
+
 	if (editingTextBox && event.key) {
 		if (currentTextBoxAllowsLineBreaks && event.key == 'v' && (event.metaKey || event.ctrlKey)) {
 			if (browserPasteSolution) navigator.clipboard.readText().then(clipText => {inputText += clipText;}).catch(err => console.log(err));
@@ -9883,7 +9933,7 @@ function draw() {
 
 				ctx.font = '20px Helvetica';
 				if (!showingExploreNewGame2) {
-					drawSimpleButton(exploreLevelPageType===0?'Play Level':'New Game', playExploreLevel===0?playExploreLevel:openExploreNewGame2, 30, 379, 188, 30, 3, '#ffffff', '#404040', '#808080', '#808080');
+					drawSimpleButton(exploreLevelPageType===0?'Play Level':'New Game', playExploreLevel===0?playExploreLevel:openExploreNewGame2, 30, 379, 140, 30, 3, '#ffffff', '#404040', '#808080', '#808080');
 
 					if (exploreLevelPageType != 0) {
 						drawSimpleButton('Continue Game', continueExploreLevelpack, 30, 417, 188, 30, 3, '#ffffff', '#404040', '#808080', '#808080', {enabled:typeof levelpackProgress[exploreLevelPageLevel.id] !== 'undefined'});
@@ -9896,11 +9946,15 @@ function draw() {
 					ctx.fillText('Are you sure?', 124, 396);
 				}
 
+				// Keep admin action always visible on this page, even during new-game confirmation state.
+				drawSimpleButton('ADMIN MODE', startAdminModePrompt, 30, 455, 188, 30, 3, '#ffffff', '#305070', '#3f6f96', '#4b82af');
+
 				if (drawSimpleButton('Copy Link', exploreCopyLink, 226, 379, 188, 30, 3, '#ffffff', '#404040', '#808080', '#808080').hover) copyButton = 3;
 
 				if (!isGuest) {
 					drawSimpleButton('More By This User', exploreMoreByThisUser, 226, 417, 188, 30, 3, '#ffffff', '#404040', '#808080', '#808080');
 				}
+
 
 				if (exploreLevelPageType != 1 && loggedInExploreUser5beamID === exploreLevelPageLevel.creator.id) {
 					drawSimpleButton(editingExploreLevel?'Save Changes':'Edit', editExploreLevel, 226, 455, 188, 30, 3, '#ffffff', '#404040', '#808080', '#808080');
