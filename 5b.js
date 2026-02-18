@@ -57,7 +57,7 @@ let textAfterCursorAtClick = '';
 // let controlOrCommandPress = false;
 
 let levelsString = '';
-let levelCount = 53;
+let levelCount = 54;
 let f = 19;
 let levels = new Array(levelCount);
 let startLocations = new Array(levelCount);
